@@ -76,7 +76,7 @@ def exp_kshot(tokenizer, model, inputs, k):
             "content": prompt,
         }
         ]
-        inputs = tokenizer.apply_chat_template(
+        input_tokenized = tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -85,7 +85,7 @@ def exp_kshot(tokenizer, model, inputs, k):
         ).to(model.device)
 
         with torch.inference_mode():
-            outputs = model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
+            outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
         response = tokenizer.decode(outputs[0]) # How does the response look like? You may need to parse it
         raw_outputs.append(response)
 
