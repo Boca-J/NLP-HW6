@@ -2,7 +2,7 @@ import os, argparse, random
 from tqdm import tqdm
 
 import torch
-from transformers import AutoTokenizer, Gemma3ForCausalLM
+from transformers import AutoTokenizer, Gemma3ForCausalLM, Gemma3ForConditionalGeneration
 from transformers import BitsAndBytesConfig
 
 from utils import set_random_seeds, compute_metrics, save_queries_and_records, compute_records
@@ -66,8 +66,26 @@ def exp_kshot(tokenizer, model, inputs, k):
     for i, sentence in tqdm(enumerate(inputs)):
         prompt = create_prompt(sentence, k) # Looking at the prompt may also help
 
-        input_ids = tokenizer(prompt, return_tensors="pt").to(DEVICE)
-        outputs = model.generate(**input_ids, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
+
+        messages=[{
+            "role": "system",
+            "content": "You are a helpful assistant that generates SQL queries based on natural language instructions.", #you may want to prompt engineer this.
+        },
+        {
+            "role": "user",
+            "content": prompt,
+        }
+        ]
+        inputs = tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+        ).to(model.device)
+
+        with torch.inference_mode():
+            outputs = model.generate(**inputs, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
         response = tokenizer.decode(outputs[0]) # How does the response look like? You may need to parse it
         raw_outputs.append(response)
 
@@ -100,6 +118,7 @@ def initialize_model_and_tokenizer(model_name, to_quantize=False):
     conditions and access the model's content.
     '''
     if model_name == "gemma-1b":
+        # model_id = "google/gemma-3-1b-it"
         model_id = "google/gemma-3-1b-it"
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         # Native weights exported in bfloat16 precision, but you can use a different precision if needed
@@ -115,6 +134,17 @@ def initialize_model_and_tokenizer(model_name, to_quantize=False):
         else:
             model = Gemma3ForCausalLM.from_pretrained(model_id,
                                                         torch_dtype=torch.bfloat16).to(DEVICE)
+    elif model_name == "gemma-27b":
+        model_id = "google/gemma-3-27b-it"
+
+        model = Gemma3ForConditionalGeneration.from_pretrained(
+            model_id, device_map="auto"
+        ).eval()
+
+        processor = AutoProcessor.from_pretrained(model_id)
+
+
+    
     else:
         raise NotImplementedError(f"Model {model_name} is not implemented in this template.")
         # #you can extend this to use 4B and 12B versions. 
