@@ -6,7 +6,7 @@ import pickle
 import random
 from tqdm import tqdm
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from typing import List, Any
 
 import torch
@@ -92,24 +92,33 @@ def compute_records(processed_qs: List[str]):
         * processed_qs (List[str]): The list of SQL queries to execute
     '''
     num_threads = 10
-    timeout_per_query = 5  # seconds per query
-    recs = []
-    error_msgs = []
+    total_timeout_secs = 30  # total wait time for all futures
+    recs = [None] * len(processed_qs)
+    error_msgs = [None] * len(processed_qs)
 
     with ThreadPoolExecutor(max_workers=num_threads) as pool:
         futures = {pool.submit(compute_record, i, query): i for i, query in enumerate(processed_qs)}
+        
+        completed, pending = wait(futures, timeout=total_timeout_secs)
 
-        for future in tqdm(as_completed(futures), total=len(futures)):
+        for future in tqdm(completed, total=len(futures)):
             i = futures[future]
             try:
-                query_id, rec, error_msg = future.result(timeout=timeout_per_query)
-                recs.append(rec)
-                error_msgs.append(error_msg)
+                query_id, rec, error_msg = future.result()
+                recs[i] = rec
+                error_msgs[i] = error_msg
             except Exception as e:
-                recs.append([])
-                error_msgs.append(str(e) or "Query failed or timed out")
+                recs[i] = []
+                error_msgs[i] = str(e) or "Query failed"
+
+        for future in pending:
+            i = futures[future]
+            future.cancel()
+            recs[i] = []
+            error_msgs[i] = "Timed out"
 
     return recs, error_msgs
+
 
 
 def compute_record(query_id, query):
