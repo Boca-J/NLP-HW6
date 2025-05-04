@@ -190,7 +190,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
 
             
             generated = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            print(generated[:2])
+            # print(generated[:2])
             all_generated_sql.extend(generated)
 
     # Save and evaluate
@@ -262,7 +262,7 @@ def main():
     #     print(error_msgs[0] if error_msgs else "No SQL errors.")
 
     # exit()
-    
+
     args = get_args()
     if args.use_wandb:
         # Recommended: Using wandb (or tensorboard) for result logging can make experimentation easier
