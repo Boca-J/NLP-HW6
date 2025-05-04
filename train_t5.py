@@ -159,7 +159,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
 
     all_generated_sql = []
 
-    tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-small")
+    tokenizer = model.tokenizer
     with torch.no_grad():
         for encoder_input, encoder_mask, decoder_input, _, _ in tqdm(dev_loader):
             encoder_input = encoder_input.to(DEVICE)
@@ -180,18 +180,27 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
             total_tokens += num_tokens
 
             # Generate predictions using greedy decoding
-            generation_config = GenerationConfig(
-                max_new_tokens=256,
-                do_sample=False  # greedy
-            )
+            # generation_config = GenerationConfig(
+            #     max_new_tokens=256,
+            #     do_sample=False  # greedy
+            # )
+            # outputs = model.generate(
+            #     input_ids=encoder_input,
+            #     attention_mask=encoder_mask,
+            #     generation_config=generation_config,
+            #     # eos_token_id=tokenizer.eos_token_id
+            # )
+
+            bos = model.tokenizer.convert_tokens_to_ids('<extra_id_0>')
             outputs = model.generate(
                 input_ids=encoder_input,
                 attention_mask=encoder_mask,
-                generation_config=generation_config,
-                # eos_token_id=tokenizer.eos_token_id
+                max_length=128,
+                num_beams=1,
+                early_stopping=True,
+                decoder_start_token_id=bos
             )
 
-            
             generated = tokenizer.batch_decode(outputs, skip_special_tokens=True)
             print(generated)
             all_generated_sql.extend(generated)
@@ -212,7 +221,7 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
     model.eval()
     all_generated_sql = []
 
-    tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-small")
+    tokenizer = model.tokenizer
 
     with torch.no_grad():
         for encoder_input, encoder_mask, _ in tqdm(test_loader):
