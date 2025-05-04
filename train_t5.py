@@ -6,11 +6,13 @@ import torch
 import torch.nn as nn
 import numpy as np
 import wandb
-
+import pickle
 from t5_utils import initialize_model, initialize_optimizer_and_scheduler, save_model, load_model_from_checkpoint, setup_wandb
 from transformers import GenerationConfig,T5TokenizerFast
 from load_data import load_t5_data, load_lines
-from utils import compute_metrics, save_queries_and_records
+from utils import compute_metrics, save_queries_and_records,compute_records
+
+
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 PAD_IDX = 0
@@ -27,7 +29,7 @@ def get_args():
     # Training hyperparameters
     parser.add_argument('--optimizer_type', type=str, default="AdamW", choices=["AdamW"],
                         help="What optimizer to use")
-    parser.add_argument('--learning_rate', type=float, default=1e-1)
+    parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--weight_decay', type=float, default=0)
 
     parser.add_argument('--scheduler_type', type=str, default="cosine", choices=["none", "cosine", "linear"],
@@ -45,8 +47,11 @@ def get_args():
                         help="How should we name this experiment?")
 
     # Data hyperparameters
-    parser.add_argument('--batch_size', type=int, default=16)
-    parser.add_argument('--test_batch_size', type=int, default=16)
+    # parser.add_argument('--batch_size', type=int, default=16)
+    # parser.add_argument('--test_batch_size', type=int, default=16)
+
+    parser.add_argument('--batch_size', type=int, default=4)
+    parser.add_argument('--test_batch_size', type=int, default=4)
 
     args = parser.parse_args()
     return args
@@ -151,7 +156,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
 
     all_generated_sql = []
 
-
+    tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-small")
     with torch.no_grad():
         for encoder_input, encoder_mask, decoder_input, _, _ in tqdm(dev_loader):
             encoder_input = encoder_input.to(DEVICE)
@@ -174,7 +179,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
 
             # Generate predictions using greedy decoding
             generation_config = GenerationConfig(
-                max_new_tokens=128,
+                max_new_tokens=500,
                 do_sample=False  # greedy
             )
             outputs = model.generate(
@@ -183,8 +188,9 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
                 generation_config=generation_config
             )
 
-            tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-small")
+            
             generated = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            print(generated[:2])
             all_generated_sql.extend(generated)
 
     # Save and evaluate
@@ -211,7 +217,7 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
             encoder_mask = encoder_mask.to(DEVICE)
 
             generation_config = GenerationConfig(
-                max_new_tokens=128,
+                max_new_tokens=512,
                 do_sample=False  # Greedy decoding
             )
             outputs = model.generate(
@@ -234,8 +240,29 @@ def main():
     #     gt_queries = load_lines(gt_sql_path)
     #     save_queries_and_records(gt_queries, gt_sql_path, gt_record_path)
     
- 
-    # Get key arguments
+
+    # with open('records/ground_truth_dev.pkl', 'rb') as f:
+    #     records, error_msgs = pickle.load(f)
+        
+
+    #     print("✅ Successfully loaded pickle file.")
+    #     print(f"# of total queries: {len(records)}")
+
+    #     # Count errors as those with empty records
+    #     num_errors = sum(1 for r in records if not r)
+    #     num_successes = len(records) - num_errors
+
+    #     print(f"# of successful records: {num_successes}")
+    #     print(f"# of SQL errors: {num_errors}")
+
+    #     # Optional: Preview a sample
+    #     print("\nSample record:")
+    #     print(records[0])
+    #     print("\nSample error message (if any):")
+    #     print(error_msgs[0] if error_msgs else "No SQL errors.")
+
+    # exit()
+    
     args = get_args()
     if args.use_wandb:
         # Recommended: Using wandb (or tensorboard) for result logging can make experimentation easier
@@ -264,7 +291,7 @@ def main():
     dev_loss, dev_record_em, dev_record_f1, dev_sql_em, dev_error_rate = eval_epoch(args, model, dev_loader,
                                                                                     gt_sql_path, model_sql_path,
                                                                                     gt_record_path, model_record_path)
-    print("Dev set results: Loss: {dev_loss}, Record F1: {dev_record_f1}, Record EM: {dev_record_em}, SQL EM: {dev_sql_em}")
+    print(f"Dev set results: Loss: {dev_loss}, Record F1: {dev_record_f1}, Record EM: {dev_record_em}, SQL EM: {dev_sql_em}")
     print(f"Dev set results: {dev_error_rate*100:.2f}% of the generated outputs led to SQL errors")
 
     # Test set
