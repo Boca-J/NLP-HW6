@@ -195,7 +195,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
             outputs = model.generate(
                 input_ids=encoder_input,
                 attention_mask=encoder_mask,
-                max_length=128,
+                max_length=512,
                 num_beams=1,
                 early_stopping=True,
                 decoder_start_token_id=bos
@@ -207,8 +207,9 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
 
     # Save and evaluate
     save_queries_and_records(all_generated_sql, model_sql_path, model_record_path)
+    print('Finish Saving')
     sql_em, record_em, record_f1, model_error_msgs = compute_metrics(gt_sql_pth, model_sql_path, gt_record_path, model_record_path)
-
+    print('Finish Computing ')
     avg_loss = total_loss / total_tokens if total_tokens > 0 else 0
     return avg_loss, record_f1, record_em, sql_em, len(model_error_msgs) / len(dev_loader.dataset)
     
@@ -218,6 +219,7 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
     You must implement inference to compute your model's generated SQL queries and its associated 
     database records. Implementation should be very similar to eval_epoch.
     '''
+    print('start inference')
     model.eval()
     all_generated_sql = []
 
@@ -228,19 +230,21 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
             encoder_input = encoder_input.to(DEVICE)
             encoder_mask = encoder_mask.to(DEVICE)
 
-            generation_config = GenerationConfig(
-                max_new_tokens=256,
-                do_sample=False  # Greedy decoding
-            )
+            bos = tokenizer.convert_tokens_to_ids('<extra_id_0>')
             outputs = model.generate(
                 input_ids=encoder_input,
                 attention_mask=encoder_mask,
-                generation_config=generation_config
+                max_length=512,
+                num_beams=1,
+                early_stopping=True,
+                decoder_start_token_id=bos
             )
 
             generated = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+            print(generated)
             all_generated_sql.extend(generated)
 
+    print('End inference ')
     save_queries_and_records(all_generated_sql, model_sql_path, model_record_path)
 
 def main():
