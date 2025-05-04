@@ -159,7 +159,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
 
     all_generated_sql = []
 
-    tokenizer = model.tokenizer
+    tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-small")
     with torch.no_grad():
         for encoder_input, encoder_mask, decoder_input, _, _ in tqdm(dev_loader):
             encoder_input = encoder_input.to(DEVICE)
@@ -221,7 +221,7 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
     model.eval()
     all_generated_sql = []
 
-    tokenizer = model.tokenizer
+    tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-small")
 
     with torch.no_grad():
         for encoder_input, encoder_mask, _ in tqdm(test_loader):
