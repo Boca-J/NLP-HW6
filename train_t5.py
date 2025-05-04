@@ -191,7 +191,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
             #     # eos_token_id=tokenizer.eos_token_id
             # )
 
-            bos = model.tokenizer.convert_tokens_to_ids('<extra_id_0>')
+            bos = tokenizer.convert_tokens_to_ids('<extra_id_0>')
             outputs = model.generate(
                 input_ids=encoder_input,
                 attention_mask=encoder_mask,
