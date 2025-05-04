@@ -26,44 +26,55 @@ class T5Dataset(Dataset):
               T5Tokenizer should serve that purpose (e.g., "<extra_id_0>").
             * Class behavior should be different on the test set.
         '''
+        
+        # TODO
         self.tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-small")
         self.split = split
-        self.data = self.process_data(data_folder, split, self.tokenizer)
-        # TODO
+      
+        self.bos_token = '<extra_id_0>'
 
-    def process_data(self, data_folder, split, tokenizer):
+        self.bos_token_id = self.tokenizer.convert_tokens_to_ids(self.bos_token)
+        self.data = []
+        self.process_data(data_folder, split)
+
+       
+        
+
+    def process_data(self, data_folder, split):
         nl_path = os.path.join(data_folder, f"{split}.nl")
         sql_path = os.path.join(data_folder, f"{split}.sql")
 
         nl_lines = load_lines(nl_path)
-        if split != "test":
+        if split in ['train', 'dev']:
+
+            sql_path = os.path.join(data_folder, f"{split}.sql")
             sql_lines = load_lines(sql_path)
             assert len(nl_lines) == len(sql_lines)
+            for nl, sql in zip(nl_lines, sql_lines):
+                prompted_nl = "translate English to SQL: " + nl
+                enc = self.tokenizer(prompted_nl, add_special_tokens=True, return_attention_mask=True)
+                dec = self.tokenizer(f"{self.bos_token} {sql}", add_special_tokens=True)
+                self.data.append({
+                        "encoder_ids": torch.tensor(enc["input_ids"], dtype=torch.long),
+                        "encoder_mask": torch.tensor(enc["attention_mask"], dtype=torch.long),
+                        "decoder_ids": torch.tensor(dec["input_ids"], dtype=torch.long),
+                        "sql_line": sql
+                    })
+        elif split == 'test':
+            for nl in nl_lines:
+                prompted_nl = "translate English to SQL: " + nl
+                enc = self.tokenizer(prompted_nl, add_special_tokens=True, return_attention_mask=True)
+                dec_ids = [self.bos_token_id]
+                self.data.append({
+                    "encoder_ids": torch.tensor(enc["input_ids"], dtype=torch.long),
+                    "encoder_mask": torch.tensor(enc["attention_mask"], dtype=torch.long),
+                    "decoder_ids": torch.tensor(dec_ids, dtype=torch.long),
+                    "sql_line": ''
+                })
         else:
-            sql_lines = [""] * len(nl_lines)
+            raise ValueError(f"Unknown split: {split}")
+ 
 
-        bos_token = "<extra_id_0>"
-        processed = []
-        for nl, sql in zip(nl_lines, sql_lines):
-            encoder = self.tokenizer(nl, truncation=True, padding=False)
-            decoder = self.tokenizer(bos_token + " " + sql, truncation=True, padding=False)
-
-            decoder_ids = decoder["input_ids"]
-            decoder_ids_tensor = torch.tensor(decoder_ids, dtype=torch.long)
-            decoder_input = decoder_ids_tensor[:-1]
-            decoder_target = decoder_ids_tensor[1:]
-
-
-            processed.append({
-                "encoder_ids": torch.tensor(encoder["input_ids"], dtype=torch.long),
-                "encoder_mask": torch.tensor(encoder["attention_mask"], dtype=torch.long),
-                "decoder_input": decoder_input,
-                "decoder_target": decoder_target,
-                "decoder_ids": decoder_ids_tensor,
-                "nl_input": nl,
-                "sql_line": sql
-            })
-        return processed
     
     def __len__(self):
 
@@ -97,17 +108,11 @@ def normal_collate_fn(batch):
     encoder_ids = pad_sequence([item[0] for item in batch], batch_first=True, padding_value=PAD_IDX)
     encoder_mask = pad_sequence([item[1] for item in batch], batch_first=True, padding_value=0)
 
-    decoder_ids = [item[2] for item in batch]
+    decoder_ids = pad_sequence([item[2] for item in batch], batch_first=True, padding_value=PAD_IDX)
     
-    # ✅ Ensure decoder_ids are tensors (they should be already from the dataset)
-    decoder_ids_padded = pad_sequence(decoder_ids, batch_first=True, padding_value=PAD_IDX)
-
-    # ✅ Now shift after padding
-    decoder_inputs = decoder_ids_padded[:, :-1]
-    decoder_targets = decoder_ids_padded[:, 1:]
-
-    initial_decoder_inputs = torch.full((len(batch), 1), fill_value=32099, dtype=torch.long)
-
+    decoder_inputs = decoder_ids[:, :-1].contiguous()
+    decoder_targets = decoder_ids[:, 1:].contiguous()
+    initial_decoder_inputs = decoder_ids[:, 0].unsqueeze(1)
     return encoder_ids, encoder_mask, decoder_inputs, decoder_targets, initial_decoder_inputs
 
 
@@ -126,8 +131,9 @@ def test_collate_fn(batch):
     '''
     # TODO
     encoder_ids = pad_sequence([item[0] for item in batch], batch_first=True, padding_value=PAD_IDX)
-    encoder_mask = pad_sequence([item[1] for item in batch], batch_first=True, padding_value=0)
-    initial_decoder_inputs = [item[3] for item in batch]  # SQL string
+    encoder_mask = pad_sequence([item[1] for item in batch], batch_first=True, padding_value=PAD_IDX)
+    decoder_ids = pad_sequence([item[2] for item in batch], batch_first=True, padding_value=PAD_IDX)
+    initial_decoder_inputs = decoder_ids[:, 0].unsqueeze(1)  # SQL string
 
     return encoder_ids, encoder_mask, initial_decoder_inputs
     
