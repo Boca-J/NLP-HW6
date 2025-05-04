@@ -206,6 +206,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
             all_generated_sql.extend(generated)
 
     # Save and evaluate
+    print("start saving ")
     save_queries_and_records(all_generated_sql, model_sql_path, model_record_path)
     print('Finish Saving')
     sql_em, record_em, record_f1, model_error_msgs = compute_metrics(gt_sql_pth, model_sql_path, gt_record_path, model_record_path)
