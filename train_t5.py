@@ -288,7 +288,7 @@ def main():
     experiment_name = args.experiment_name
     model_type = 'ft' if args.finetune else 'scr'
     gt_sql_path = os.path.join(f'data/dev.sql')
-    gt_record_path = os.path.join(f'records/records/ground_truth_dev.pkl')
+    gt_record_path = os.path.join(f'records/ground_truth_dev.pkl')
     model_sql_path = os.path.join(f'results/t5_{model_type}_{experiment_name}_dev.sql')
     model_record_path = os.path.join(f'records/t5_{model_type}_{experiment_name}_dev.pkl')
     dev_loss, dev_record_em, dev_record_f1, dev_sql_em, dev_error_rate = eval_epoch(args, model, dev_loader,
