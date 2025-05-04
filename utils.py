@@ -73,7 +73,8 @@ def save_queries_and_records(sql_queries: List[str], sql_path: str, record_path:
             f.write(f'{query}\n')
 
     # Next compute and save records
-    records, error_msgs = compute_records(sql_queries)    
+    records, error_msgs = compute_records(sql_queries)  
+    print('finish recrods')  
     with open(record_path, 'wb') as f:
         pickle.dump((records, error_msgs), f)
 
