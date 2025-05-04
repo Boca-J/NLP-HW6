@@ -77,6 +77,7 @@ def save_queries_and_records(sql_queries: List[str], sql_path: str, record_path:
     print('finish recrods')  
     with open(record_path, 'wb') as f:
         pickle.dump((records, error_msgs), f)
+    print('finish writing ')
 
 def read_queries(sql_path: str):
     with open(sql_path, 'r') as f:
@@ -92,25 +93,35 @@ def compute_records(processed_qs: List[str]):
     Input:
         * processed_qs (List[str]): The list of SQL queries to execute
     '''
-    num_threads = 10
-    timeout_per_query = 5  # seconds
-    recs = [None] * len(processed_qs)
-    error_msgs = [None] * len(processed_qs)
+    num_threads = 20
+    timeout_secs = 20
 
-    with ThreadPoolExecutor(max_workers=num_threads) as pool:
-        futures = {pool.submit(compute_record, i, query): i for i, query in enumerate(processed_qs)}
-
-        for future in tqdm(futures, total=len(futures)):
-            i = futures[future]
-            try:
-                query_id, rec, error_msg = future.result(timeout=timeout_per_query)
-                recs[i] = rec
-                error_msgs[i] = error_msg
-            except Exception as e:
+    pool = ThreadPoolExecutor(num_threads)
+    futures = []
+    for i, query in enumerate(processed_qs):
+        futures.append(pool.submit(compute_record, i, query))
+        
+    rec_dict = {}
+    try:
+        for x in tqdm(as_completed(futures, timeout=timeout_secs)):
+            query_id, rec, error_msg = x.result()
+            rec_dict[query_id] = (rec, error_msg)
+    except:
+        for future in futures:
+            if not future.done():
                 future.cancel()
-                recs[i] = []
-                error_msgs[i] = str(e) or "Query failed"
-
+            
+    recs = []
+    error_msgs = []
+    for i in range(len(processed_qs)):
+        if i in rec_dict:
+            rec, error_msg = rec_dict[i]
+            recs.append(rec)
+            error_msgs.append(error_msg)
+        else:
+            recs.append([])
+            error_msgs.append("Query timed out")
+            
     return recs, error_msgs
 
 
