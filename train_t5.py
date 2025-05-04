@@ -188,12 +188,12 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
                 input_ids=encoder_input,
                 attention_mask=encoder_mask,
                 generation_config=generation_config,
-                # eos_token_id=tokenizer.eos_token_id
+                eos_token_id=tokenizer.eos_token_id
             )
 
             
             generated = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            print(generated[:2])
+            print(generated)
             all_generated_sql.extend(generated)
 
     # Save and evaluate
