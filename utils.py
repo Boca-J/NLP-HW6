@@ -91,36 +91,26 @@ def compute_records(processed_qs: List[str]):
     Input:
         * processed_qs (List[str]): The list of SQL queries to execute
     '''
-    num_threads = 20
-    timeout_secs = 20
-
-    pool = ThreadPoolExecutor(num_threads)
-    futures = []
-    for i, query in enumerate(processed_qs):
-        futures.append(pool.submit(compute_record, i, query))
-        
-    rec_dict = {}
-    try:
-        for x in tqdm(as_completed(futures, timeout=timeout_secs)):
-            query_id, rec, error_msg = x.result()
-            rec_dict[query_id] = (rec, error_msg)
-    except:
-        for future in futures:
-            if not future.done():
-                future.cancel()
-            
+    num_threads = 10
+    timeout_per_query = 5  # seconds per query
     recs = []
     error_msgs = []
-    for i in range(len(processed_qs)):
-        if i in rec_dict:
-            rec, error_msg = rec_dict[i]
-            recs.append(rec)
-            error_msgs.append(error_msg)
-        else:
-            recs.append([])
-            error_msgs.append("Query timed out")
-            
+
+    with ThreadPoolExecutor(max_workers=num_threads) as pool:
+        futures = {pool.submit(compute_record, i, query): i for i, query in enumerate(processed_qs)}
+
+        for future in tqdm(as_completed(futures), total=len(futures)):
+            i = futures[future]
+            try:
+                query_id, rec, error_msg = future.result(timeout=timeout_per_query)
+                recs.append(rec)
+                error_msgs.append(error_msg)
+            except Exception as e:
+                recs.append([])
+                error_msgs.append(str(e) or "Query failed or timed out")
+
     return recs, error_msgs
+
 
 def compute_record(query_id, query):
     conn = sqlite3.connect(DB_PATH)
