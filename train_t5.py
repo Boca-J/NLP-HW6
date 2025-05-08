@@ -72,12 +72,25 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler):
 
         tr_loss = train_epoch(args, model, train_loader, optimizer, scheduler)
         print(f"Epoch {epoch}: Average train loss was {tr_loss}")
+        if epoch % 5 == 0:
 
-        eval_loss, record_f1, record_em, sql_em, error_rate = eval_epoch(args, model, dev_loader,
-                                                                         gt_sql_path, model_sql_path,
-                                                                         gt_record_path, model_record_path)
-        print(f"Epoch {epoch}: Dev loss: {eval_loss}, Record F1: {record_f1}, Record EM: {record_em}, SQL EM: {sql_em}")
-        print(f"Epoch {epoch}: {error_rate*100:.2f}% of the generated outputs led to SQL errors")
+            eval_loss, record_f1, record_em, sql_em, error_rate = eval_epoch(args, model, dev_loader,
+                                                                            gt_sql_path, model_sql_path,
+                                                                            gt_record_path, model_record_path)
+            print(f"Epoch {epoch}: Dev loss: {eval_loss}, Record F1: {record_f1}, Record EM: {record_em}, SQL EM: {sql_em}")
+            print(f"Epoch {epoch}: {error_rate*100:.2f}% of the generated outputs led to SQL errors")
+            if record_f1 > best_f1:
+                best_f1 = record_f1
+                epochs_since_improvement = 0
+            else:
+                epochs_since_improvement += 1
+   
+            save_model(checkpoint_dir, model, best=False)
+            if epochs_since_improvement == 0:
+                save_model(checkpoint_dir, model, best=True)
+
+            if epochs_since_improvement >= args.patience_epochs:
+                break
 
         if args.use_wandb:
             result_dict = {
@@ -90,18 +103,7 @@ def train(args, model, train_loader, dev_loader, optimizer, scheduler):
             }
             wandb.log(result_dict, step=epoch)
 
-        if record_f1 > best_f1:
-            best_f1 = record_f1
-            epochs_since_improvement = 0
-        else:
-            epochs_since_improvement += 1
-   
-        save_model(checkpoint_dir, model, best=False)
-        if epochs_since_improvement == 0:
-            save_model(checkpoint_dir, model, best=True)
-
-        if epochs_since_improvement >= args.patience_epochs:
-            break
+        
 
 def train_epoch(args, model, train_loader, optimizer, scheduler):
     model.train()
@@ -202,7 +204,7 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
             )
 
             generated = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            print(generated)
+            #print(generated)
             all_generated_sql.extend(generated)
 
     # Save and evaluate
@@ -242,7 +244,7 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
             )
 
             generated = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            print(generated)
+            # print(generated)
             all_generated_sql.extend(generated)
 
     print('End inference ')
