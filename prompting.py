@@ -8,6 +8,8 @@ from transformers import BitsAndBytesConfig
 from utils import set_random_seeds, compute_metrics, save_queries_and_records, compute_records
 from prompting_utils import read_schema, extract_sql_query, save_logs
 from load_data import load_prompting_data
+import os
+os.environ["PYTORCH_SDP_DISABLE_FLASH_ATTENTION"] = "1"
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') # you can add mps
 
