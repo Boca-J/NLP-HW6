@@ -103,13 +103,13 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
         ).to(model.device)
 
         with torch.inference_mode():
-            # outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
-            outputs = model.generate(...,
-                do_sample=False,
-                num_beams=1,
-                temperature=0.1,
-                repetition_penalty=1.2,
-            )
+            outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
+            # outputs = model.generate(...,
+            #     do_sample=False,
+            #     num_beams=1,
+            #     temperature=0.1,
+            #     repetition_penalty=1.2,
+            # )
         response = tokenizer.decode(outputs[0], skip_special_tokens=True) # How does the response look like? You may need to parse it
         raw_outputs.append(response)
 
