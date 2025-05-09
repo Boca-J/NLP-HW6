@@ -63,7 +63,7 @@ def create_prompt(sentence, k, examples=None):
     return prompt
 
 
-def exp_kshot(tokenizer, model, inputs, k, examples):
+def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
     '''
     k-shot prompting experiments using the provided model and tokenizer. 
     This function generates SQL queries from text prompts and evaluates their accuracy.
@@ -80,6 +80,8 @@ def exp_kshot(tokenizer, model, inputs, k, examples):
     extracted_queries = []
 
     for i, sentence in tqdm(enumerate(inputs)):
+        examples = random.sample(list(zip(train_x, train_y)), k) if k > 0 else None
+   
         prompt = create_prompt(sentence, k,examples) # Looking at the prompt may also help
         print(f"\n==== Prompt for input {i} ====\n{prompt}\n")
 
@@ -198,7 +200,7 @@ def main():
 
     data_folder = 'data'
     train_x, train_y, dev_x, dev_y, test_x = load_prompting_data(data_folder)
-    examples = random.sample(list(zip(train_x, train_y)), shot) if shot > 0 else None
+   
 
     # Model and tokenizer
     tokenizer, model = initialize_model_and_tokenizer(model_name, to_quantize)
@@ -206,7 +208,7 @@ def main():
     for eval_split in ["dev", "test"]:
         eval_x, eval_y = (dev_x, dev_y) if eval_split == "dev" else (test_x, None)
 
-        raw_outputs, extracted_queries = exp_kshot(tokenizer, model, eval_x, shot, examples)
+        raw_outputs, extracted_queries = exp_kshot(tokenizer, model, eval_x, shot, train_x, train_y)
 
         # You can add any post-processing if needed
         # You can compute the records with `compute_records``
