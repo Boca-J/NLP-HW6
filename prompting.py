@@ -2,7 +2,7 @@ import os, argparse, random
 from tqdm import tqdm
 
 import torch
-from transformers import AutoTokenizer, Gemma3ForCausalLM, Gemma3ForConditionalGeneration
+from transformers import AutoTokenizer, Gemma3ForCausalLM, Gemma3ForConditionalGeneration, AutoProcessor
 from transformers import BitsAndBytesConfig
 
 from utils import set_random_seeds, compute_metrics, save_queries_and_records, compute_records
@@ -11,7 +11,7 @@ from load_data import load_prompting_data
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') # you can add mps
 
-
+MAX_NEW_TOKENS = 512
 def get_args():
     '''
     Arguments for prompting. You may choose to change or extend these as you see fit.
@@ -34,7 +34,7 @@ def get_args():
     return args
 
 
-def create_prompt(sentence, k):
+def create_prompt(sentence, k, examples=None):
     '''
     Function for creating a prompt for zero or few-shot prompting.
 
@@ -45,9 +45,22 @@ def create_prompt(sentence, k):
         * k (int): Number of examples in k-shot prompting
     '''
     # TODO
+    header = "Translate the following questions into SQL:\n\n"
+    prompt = header
+
+    # Few-shot examples
+    if k > 0:
+        for i in range(min(k, len(examples))):
+            nl, sql = examples[i]
+            prompt += f"Q: {nl}\nA: {sql}\n\n"
+
+    # The current input
+    prompt += f"Q: {sentence}\nA:"
+
+    return prompt
 
 
-def exp_kshot(tokenizer, model, inputs, k):
+def exp_kshot(tokenizer, model, inputs, k, examples):
     '''
     k-shot prompting experiments using the provided model and tokenizer. 
     This function generates SQL queries from text prompts and evaluates their accuracy.
@@ -64,8 +77,8 @@ def exp_kshot(tokenizer, model, inputs, k):
     extracted_queries = []
 
     for i, sentence in tqdm(enumerate(inputs)):
-        prompt = create_prompt(sentence, k) # Looking at the prompt may also help
-
+        prompt = create_prompt(sentence, k,examples) # Looking at the prompt may also help
+        print(f"\n==== Prompt for input {i} ====\n{prompt}\n")
 
         messages=[{
             "role": "system",
@@ -105,6 +118,19 @@ def eval_outputs(eval_x, eval_y, gt_sql_pth, model_sql_path, gt_record_path, mod
     Add/modify the arguments and code as needed.
     '''
     # TODO
+    with open(model_sql_path, 'w') as f:
+        for query in eval_y:
+            f.write(query.strip() + '\n')
+
+    model_queries = eval_y 
+    save_queries_and_records(model_queries, model_sql_path, model_record_path)
+
+
+    sql_em, record_em, record_f1, model_error_msgs = compute_metrics(
+        gt_sql_pth, model_sql_path, gt_record_path, model_record_path
+    )
+    error_rate = len(model_error_msgs) / len(model_queries)
+
     return sql_em, record_em, record_f1, model_error_msgs, error_rate
 
 
@@ -169,6 +195,7 @@ def main():
 
     data_folder = 'data'
     train_x, train_y, dev_x, dev_y, test_x = load_prompting_data(data_folder)
+    examples = random.sample(list(zip(train_x, train_y)), shot) if shot > 0 else None
 
     # Model and tokenizer
     tokenizer, model = initialize_model_and_tokenizer(model_name, to_quantize)
@@ -176,7 +203,7 @@ def main():
     for eval_split in ["dev", "test"]:
         eval_x, eval_y = (dev_x, dev_y) if eval_split == "dev" else (test_x, None)
 
-        raw_outputs, extracted_queries = exp_kshot(tokenizer, model, eval_x, shot)
+        raw_outputs, extracted_queries = exp_kshot(tokenizer, model, eval_x, shot, examples)
 
         # You can add any post-processing if needed
         # You can compute the records with `compute_records``
@@ -186,16 +213,25 @@ def main():
         gt_record_path = os.path.join(f'records/{eval_split}_gt_records.pkl') 
 
         #if you saved the records, you can load them here
-        model_sql_path = os.path.join(f'results/gemma_{experiment_name}_dev.sql')
-        model_record_path = os.path.join(f'records/gemma_{experiment_name}_dev.pkl')
+        model_sql_path = os.path.join(f'results/gemma_{experiment_name}_{eval_split}.sql')
+        model_record_path = os.path.join(f'records/gemma_{experiment_name}_{eval_split}.pkl')
 
+
+
+        # sql_em, record_em, record_f1, model_error_msgs, error_rate = eval_outputs(
+        #     eval_x, eval_y,
+        #     gt_path=gt_sql_path,
+        #     model_path=model_sql_path,
+        #     gt_query_records=gt_query_records,
+        #     model_query_records=model_record_path
+        # )
 
         sql_em, record_em, record_f1, model_error_msgs, error_rate = eval_outputs(
-            eval_x, eval_y,
-            gt_path=gt_sql_path,
-            model_path=model_sql_path,
-            gt_query_records=gt_query_records,
-            model_query_records=model_record_path
+            eval_x, extracted_queries,
+            gt_sql_pth=gt_sql_path,
+            model_sql_path=model_sql_path,
+            gt_record_path=gt_record_path,
+            model_record_path=model_record_path
         )
         print(f"{eval_split} set results: ")
         print(f"Record F1: {record_f1}, Record EM: {record_em}, SQL EM: {sql_em}")
