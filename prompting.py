@@ -103,8 +103,8 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
         ).to(model.device)
 
         with torch.inference_mode():
-            outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
-            outputs = outputs = model.generate(...,
+            # outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
+            outputs = model.generate(...,
                 do_sample=False,
                 num_beams=1,
                 temperature=0.1,
