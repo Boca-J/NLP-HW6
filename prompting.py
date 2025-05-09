@@ -83,7 +83,7 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
         examples = random.sample(list(zip(train_x, train_y)), k) if k > 0 else None
    
         prompt = create_prompt(sentence, k,examples) # Looking at the prompt may also help
-        print(f"\n==== Prompt for input {i} ====\n{prompt}\n")
+        # print(f"\n==== Prompt for input {i} ====\n{prompt}\n")
 
         messages=[{
             "role": "system",
@@ -104,7 +104,13 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
 
         with torch.inference_mode():
             outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
-        response = tokenizer.decode(outputs[0]) # How does the response look like? You may need to parse it
+            outputs = outputs = model.generate(...,
+                do_sample=False,
+                num_beams=1,
+                temperature=0.1,
+                repetition_penalty=1.2,
+            )
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True) # How does the response look like? You may need to parse it
         raw_outputs.append(response)
 
         # Extract the SQL query
