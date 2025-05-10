@@ -66,7 +66,7 @@ x
             prompt += f"Q: {nl}\nA: {sql}\n\n"
 
     # The current input
-    prompt += f"Q: {sentence}\nA:"
+    prompt += f"Q: {sentence}\nA:\n"
 
     return prompt
 

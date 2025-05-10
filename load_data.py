@@ -42,7 +42,7 @@ class T5Dataset(Dataset):
 
     def process_data(self, data_folder, split):
         nl_path = os.path.join(data_folder, f"{split}.nl")
-        sql_path = os.path.join(data_folder, f"{split}.sql")
+        sql_path = os.path.join(data_folder, f"{split}.sql") 
 
         nl_lines = load_lines(nl_path)
         if split in ['train', 'dev']:
