@@ -258,7 +258,12 @@ def initialize_model_and_tokenizer(model_name, to_quantize=False):
      
         model_id = "google/gemma-3-4b-it"
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = LLM(model=model_id, gpu_memory_utilization=0.9)
+        # model = LLM(model=model_id, gpu_memory_utilization=0.9)
+        model = Gemma3ForCausalLM.from_pretrained(
+            model_id,
+            torch_dtype=torch.bfloat16,  # or torch.float16 if your GPU doesn't support BF16
+            device_map="auto"            # automatically place model layers on available GPU(s)
+        ).eval()
     
     else:
         raise NotImplementedError(f"Model {model_name} is not implemented in this template.")
