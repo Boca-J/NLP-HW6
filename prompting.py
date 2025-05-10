@@ -209,10 +209,9 @@ def initialize_model_and_tokenizer(model_name, to_quantize=False):
 
         processor = AutoProcessor.from_pretrained(model_id)
 
-    elif model_name == "gemma-7b":
-        # tokenizer = AutoTokenizer.from_pretrained("google/codegemma-7b-it")
-        # model = AutoModelForCausalLM.from_pretrained("google/codegemma-7b-it")
-        model = LLM(model="google/gemma-3-7b-it", gpu_memory_utilization=0.9)
+    elif model_name == "gemma-4b":
+     
+        model = LLM(model="google/gemma-3-4b-it", gpu_memory_utilization=0.9)
     
     else:
         raise NotImplementedError(f"Model {model_name} is not implemented in this template.")
