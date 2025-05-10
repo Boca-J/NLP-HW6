@@ -72,76 +72,119 @@ x
 
 
 def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
-    '''
-    k-shot prompting experiments using the provided model and tokenizer. 
-    This function generates SQL queries from text prompts and evaluates their accuracy.
-
-    Add/modify the arguments and code as needed.
-
-    Inputs:
-        * tokenizer
-        * model
-        * inputs (List[str]): A list of text strings
-        * k (int): Number of examples in k-shot prompting
-    '''
     raw_outputs = []
     extracted_queries = []
 
+    is_vllm = isinstance(model, LLM)
+
     for i, sentence in tqdm(enumerate(inputs)):
         examples = random.sample(list(zip(train_x, train_y)), k) if k > 0 else None
-   
-        prompt = create_prompt(sentence, k,examples) # Looking at the prompt may also help
-        # print(f"\n==== Prompt for input {i} ====\n{prompt}\n")
+        prompt = create_prompt(sentence, k, examples)
 
-        messages=[{
-            "role": "system",
-            "content": "You are a helpful assistant that generates SQL queries based on natural language instructions.", #you may want to prompt engineer this.
-        },
-        {
-            "role": "user",
-            "content": prompt,
-        }
-        ]
-        input_tokenized = tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-        ).to(model.device)
-
-        input_ids = input_tokenized["input_ids"]
-        pad_len = (128 - input_ids.shape[1] % 128) % 128
-        if pad_len > 0:
-            pad_tensor = torch.full((1, pad_len), tokenizer.pad_token_id, dtype=torch.long).to(model.device)
-            input_tokenized["input_ids"] = torch.cat([input_ids, pad_tensor], dim=1)
-
-            if "attention_mask" in input_tokenized:
-                pad_mask = torch.zeros((1, pad_len), dtype=torch.long).to(model.device)
-                input_tokenized["attention_mask"] = torch.cat([input_tokenized["attention_mask"], pad_mask], dim=1)
-        sampling_params = SamplingParams(temperature=0.0, max_tokens=512)
-
-        with torch.inference_mode():
-            # outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
-            # outputs = model.generate(...,
-            #     do_sample=False,
-            #     num_beams=1,
-            #     temperature=0.1,
-            #     repetition_penalty=1.2,
-            #     use_cache=False
-            # )
-
+        if is_vllm:
+            sampling_params = SamplingParams(temperature=0.0, max_tokens=512)
             outputs = model.generate([prompt], sampling_params)
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True) # How does the response look like? You may need to parse it
+            response = outputs[0].outputs[0].text
+        else:
+            messages = [
+                {"role": "system", "content": "You are a helpful assistant that generates SQL queries based on natural language instructions."},
+                {"role": "user", "content": prompt},
+            ]
+            input_tokenized = tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+            ).to(model.device)
+
+            input_ids = input_tokenized["input_ids"]
+            with torch.inference_mode():
+                outputs = model.generate(input_ids, max_new_tokens=512)
+            response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
         raw_outputs.append(response)
 
-        # Extract the SQL query
         extracted_query = extract_sql_query(response)
         extracted_queries.append(extracted_query)
 
         print(f"\n================ Prompt {i} ================\n{prompt}")
         print(f"\n================ Response {i} ================\n{response}")
         print(f"\n================ Extracted SQL {i} ================\n{extracted_query}\n")
+
+    return raw_outputs, extracted_queries
+
+# def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
+#     '''
+#     k-shot prompting experiments using the provided model and tokenizer. 
+#     This function generates SQL queries from text prompts and evaluates their accuracy.
+
+#     Add/modify the arguments and code as needed.
+
+#     Inputs:
+#         * tokenizer
+#         * model
+#         * inputs (List[str]): A list of text strings
+#         * k (int): Number of examples in k-shot prompting
+#     '''
+    # raw_outputs = []
+    # extracted_queries = []
+
+    # for i, sentence in tqdm(enumerate(inputs)):
+    #     examples = random.sample(list(zip(train_x, train_y)), k) if k > 0 else None
+   
+    #     prompt = create_prompt(sentence, k,examples) # Looking at the prompt may also help
+    #     # print(f"\n==== Prompt for input {i} ====\n{prompt}\n")
+
+    #     messages=[{
+    #         "role": "system",
+    #         "content": "You are a helpful assistant that generates SQL queries based on natural language instructions.", #you may want to prompt engineer this.
+    #     },
+    #     {
+    #         "role": "user",
+    #         "content": prompt,
+    #     }
+    #     ]
+    #     input_tokenized = tokenizer.apply_chat_template(
+    #         messages,
+    #         add_generation_prompt=True,
+    #         tokenize=True,
+    #         return_dict=True,
+    #         return_tensors="pt",
+    #     ).to(model.device)
+
+    #     input_ids = input_tokenized["input_ids"]
+    #     pad_len = (128 - input_ids.shape[1] % 128) % 128
+    #     if pad_len > 0:
+    #         pad_tensor = torch.full((1, pad_len), tokenizer.pad_token_id, dtype=torch.long).to(model.device)
+    #         input_tokenized["input_ids"] = torch.cat([input_ids, pad_tensor], dim=1)
+
+    #         if "attention_mask" in input_tokenized:
+    #             pad_mask = torch.zeros((1, pad_len), dtype=torch.long).to(model.device)
+    #             input_tokenized["attention_mask"] = torch.cat([input_tokenized["attention_mask"], pad_mask], dim=1)
+    #     sampling_params = SamplingParams(temperature=0.0, max_tokens=512)
+
+    #     with torch.inference_mode():
+    #         # outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
+    #         # outputs = model.generate(...,
+    #         #     do_sample=False,
+    #         #     num_beams=1,
+    #         #     temperature=0.1,
+    #         #     repetition_penalty=1.2,
+    #         #     use_cache=False
+    #         # )
+
+    #         outputs = model.generate([prompt], sampling_params)
+    #     response = tokenizer.decode(outputs[0], skip_special_tokens=True) # How does the response look like? You may need to parse it
+    #     raw_outputs.append(response)
+
+    #     # Extract the SQL query
+    #     extracted_query = extract_sql_query(response)
+    #     extracted_queries.append(extracted_query)
+
+    #     print(f"\n================ Prompt {i} ================\n{prompt}")
+    #     print(f"\n================ Response {i} ================\n{response}")
+    #     print(f"\n================ Extracted SQL {i} ================\n{extracted_query}\n")
 
  
 
