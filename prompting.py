@@ -11,10 +11,14 @@ from transformers import BitsAndBytesConfig
 from utils import set_random_seeds, compute_metrics, save_queries_and_records, compute_records
 from prompting_utils import read_schema, extract_sql_query, save_logs
 from load_data import load_prompting_data
+os.environ["PYTORCH_CUDA_ALLOW_TF32"] = "0"
+torch.backends.cuda.enable_flash_sdp(False)
+torch.backends.cuda.enable_mem_efficient_sdp(False)
+torch.backends.cuda.enable_math_sdp(True)
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') # you can add mps
 
-MAX_NEW_TOKENS = 256
+MAX_NEW_TOKENS = 512
 def get_args():
     '''
     Arguments for prompting. You may choose to change or extend these as you see fit.
@@ -48,7 +52,11 @@ def create_prompt(sentence, k, examples=None):
         * k (int): Number of examples in k-shot prompting
     '''
     # TODO
-    header = "Translate the following questions into SQL:\n\n"
+    header = (
+    "You are an expert database assistant. "
+    "Given a natural language question, generate the correct SQL query using the schema.\n\n"
+    "Each question will be followed by 'Q:', and your SQL should follow 'A:'.\n\n"
+    )
     prompt = header
 
     # Few-shot examples
@@ -103,7 +111,7 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
         ).to(model.device)
 
         with torch.inference_mode():
-            outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS, use_cache=False ) # You should set MAX_NEW_TOKENS
+            outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
             # outputs = model.generate(...,
             #     do_sample=False,
             #     num_beams=1,
@@ -117,6 +125,10 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
         # Extract the SQL query
         extracted_query = extract_sql_query(response)
         extracted_queries.append(extracted_query)
+
+        print(f"\n================ Prompt {i} ================\n{prompt}")
+        print(f"\n================ Response {i} ================\n{response}")
+        print(f"\n================ Extracted SQL {i} ================\n{extracted_query}\n")
 
  
 
@@ -168,7 +180,7 @@ def initialize_model_and_tokenizer(model_name, to_quantize=False):
             )
             model = Gemma3ForCausalLM.from_pretrained(model_id,
                                                         torch_dtype=torch.bfloat16,
-                                                        config=nf4_config).to(DEVICE)
+                                                        quantization_config=nf4_config).to(DEVICE)
         else:
             model = Gemma3ForCausalLM.from_pretrained(model_id,
                                                         torch_dtype=torch.bfloat16).to(DEVICE)
@@ -254,7 +266,7 @@ def main():
 
         # Save logs, if needed
         log_path = "" # to specify
-        save_logs(log_path, sql_em, record_em, record_f1, model_error_msgs)
+        # save_logs(log_path, sql_em, record_em, record_f1, model_error_msgs)
 
 
 if __name__ == "__main__":
