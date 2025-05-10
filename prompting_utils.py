@@ -16,37 +16,28 @@ def extract_sql_query(response):
     Extract the SQL query from the model's response
     '''
     # TODO
-    # response = response.strip()
+    markdown_match = re.search(r"```sql\s*(.*?)```", response, re.IGNORECASE | re.DOTALL)
+    if markdown_match:
+        return markdown_match.group(1).strip()
 
-    # sql_start = response.lower().find("select")
-    # if sql_start == -1:
-    #     return ""  
+    # 2. Look for "SQL:" prefix
+    if "SQL:" in response.upper():
+        sql_part = response.split("SQL:")[-1].strip()
+        if sql_part.lower().startswith(("select", "with")):
+            return sql_part
 
-    
-    response = response.strip()
-    # If inside markdown-style ```sql ... ```
-    if "```sql" in response.lower():
-        matches = re.findall(r"```sql\s*(.*?)```", response, re.DOTALL | re.IGNORECASE)
-        if matches:
-            return matches[0].strip()
-
-    # Look for line that starts with SELECT or WITH
+    # 3. Find any line that starts with SELECT or WITH
     for line in response.splitlines():
         if line.strip().lower().startswith(("select", "with")):
             return line.strip()
 
-    # Look for inline SQL after "SQL:"
-    if "SQL:" in response:
-        idx = response.upper().find("SQL:")
-        return response[idx + 4:].strip()
+    # 4. Fallback: locate first "select"/"with" keyword in entire text
+    match = re.search(r"(select|with)\s.+", response, re.IGNORECASE | re.DOTALL)
+    if match:
+        return match.group(0).strip()
 
-    # As fallback, find the first "SELECT" or "WITH" in the full text
-    for keyword in ("select", "with"):
-        idx = response.lower().find(keyword)
-        if idx != -1:
-            return response[idx:].strip()
-
-    return response[sql_start:].strip()
+    # 5. If nothing found, return empty string
+    return ""
 
 def save_logs(output_path, sql_em, record_em, record_f1, error_msgs):
     '''

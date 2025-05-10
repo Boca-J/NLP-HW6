@@ -14,7 +14,7 @@ from load_data import load_prompting_data
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') # you can add mps
 
-MAX_NEW_TOKENS = 512
+MAX_NEW_TOKENS = 256
 def get_args():
     '''
     Arguments for prompting. You may choose to change or extend these as you see fit.
