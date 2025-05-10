@@ -290,31 +290,21 @@ def main():
     tokenizer, model = initialize_model_and_tokenizer(model_name, to_quantize)
 
     for eval_split in ["dev", "test"]:
-        eval_x, eval_y = (dev_x, dev_y) if eval_split == "dev" else (test_x, None)
+        
+        eval_x = dev_x if eval_split == "dev" else test_x
 
+        # Generate outputs using the LLM
         raw_outputs, extracted_queries = exp_kshot(tokenizer, model, eval_x, shot, train_x, train_y)
+      
+        
+        # File paths
+        gt_sql_path = os.path.join(f"data/{eval_split}.sql")
+        gt_record_path = os.path.join(f"records/{eval_split}_gt_records.pkl")
 
-        # You can add any post-processing if needed
-        # You can compute the records with `compute_records``
+        model_sql_path = os.path.join(f"results/gemma_{experiment_name}_{eval_split}.sql")
+        model_record_path = os.path.join(f"records/gemma_{experiment_name}_{eval_split}.pkl")
 
-        gt_query_records = f"records/{eval_split}_gt_records.pkl"
-        gt_sql_path = os.path.join(f'data/{eval_split}.sql')
-        gt_record_path = os.path.join(f'records/{eval_split}_gt_records.pkl') 
-
-        #if you saved the records, you can load them here
-        model_sql_path = os.path.join(f'results/gemma_{experiment_name}_{eval_split}.sql')
-        model_record_path = os.path.join(f'records/gemma_{experiment_name}_{eval_split}.pkl')
-
-
-
-        # sql_em, record_em, record_f1, model_error_msgs, error_rate = eval_outputs(
-        #     eval_x, eval_y,
-        #     gt_path=gt_sql_path,
-        #     model_path=model_sql_path,
-        #     gt_query_records=gt_query_records,
-        #     model_query_records=model_record_path
-        # )
-
+        # Evaluate and save results
         sql_em, record_em, record_f1, model_error_msgs, error_rate = eval_outputs(
             eval_x, extracted_queries,
             gt_sql_pth=gt_sql_path,
@@ -322,16 +312,11 @@ def main():
             gt_record_path=gt_record_path,
             model_record_path=model_record_path
         )
-        print(f"{eval_split} set results: ")
+
+        print(f"{eval_split} set results:")
         print(f"Record F1: {record_f1}, Record EM: {record_em}, SQL EM: {sql_em}")
         print(f"{eval_split} set results: {error_rate*100:.2f}% of the generated outputs led to SQL errors")
 
-        # Save results
-        # You can for instance use the `save_queries_and_records` function
-
-        # Save logs, if needed
-        log_path = "" # to specify
-        # save_logs(log_path, sql_em, record_em, record_f1, model_error_msgs)
 
 
 if __name__ == "__main__":
