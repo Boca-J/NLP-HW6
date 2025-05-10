@@ -82,7 +82,7 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
         prompt = create_prompt(sentence, k, examples)
 
         if is_vllm:
-            sampling_params = SamplingParams(temperature=0.2, max_tokens=512, stop=["\nend"])
+            sampling_params = SamplingParams(temperature=0.2, max_tokens=512)
             outputs = model.generate([prompt], sampling_params)
             response = outputs[0].outputs[0].text
             print("RAW VLLM OUTPUT:", outputs)  # Debug here
