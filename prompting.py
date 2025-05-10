@@ -66,7 +66,7 @@ x
             prompt += f"Q: {nl}\nA: {sql}\n\n"
 
     # The current input
-    prompt += f"Q: {sentence}\nA:\n"
+    prompt += f"Q: {sentence}\nA:\nend\n"
 
     return prompt
 
@@ -82,7 +82,7 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
         prompt = create_prompt(sentence, k, examples)
 
         if is_vllm:
-            sampling_params = SamplingParams(temperature=0.0, max_tokens=512)
+            sampling_params = SamplingParams(temperature=0.0, max_tokens=512, stop=["end\n"])
             outputs = model.generate([prompt], sampling_params)
             response = outputs[0].outputs[0].text
             print("RAW VLLM OUTPUT:", outputs)  # Debug here
