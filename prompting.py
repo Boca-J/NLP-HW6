@@ -5,9 +5,9 @@ os.environ["PYTORCH_SDP_DISABLE_FLASH_ATTENTION"] = "1"
 
 
 import torch
-from transformers import AutoTokenizer, Gemma3ForCausalLM, Gemma3ForConditionalGeneration, AutoProcessor
+from transformers import AutoTokenizer, Gemma3ForCausalLM, Gemma3ForConditionalGeneration, AutoProcessor,AutoModelForCausalLM
 from transformers import BitsAndBytesConfig
-
+from vllm import LLM, SamplingParams
 from utils import set_random_seeds, compute_metrics, save_queries_and_records, compute_records
 from prompting_utils import read_schema, extract_sql_query, save_logs
 from load_data import load_prompting_data
@@ -44,7 +44,7 @@ def get_args():
 def create_prompt(sentence, k, examples=None):
     '''
     Function for creating a prompt for zero or few-shot prompting.
-
+x
     Add/modify the arguments as needed.
 
     Inputs:
@@ -119,9 +119,10 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
             if "attention_mask" in input_tokenized:
                 pad_mask = torch.zeros((1, pad_len), dtype=torch.long).to(model.device)
                 input_tokenized["attention_mask"] = torch.cat([input_tokenized["attention_mask"], pad_mask], dim=1)
+        sampling_params = SamplingParams(temperature=0.0, max_tokens=512)
 
         with torch.inference_mode():
-            outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
+            # outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
             # outputs = model.generate(...,
             #     do_sample=False,
             #     num_beams=1,
@@ -129,6 +130,8 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
             #     repetition_penalty=1.2,
             #     use_cache=False
             # )
+
+            outputs = model.generate([prompt], sampling_params)
         response = tokenizer.decode(outputs[0], skip_special_tokens=True) # How does the response look like? You may need to parse it
         raw_outputs.append(response)
 
@@ -203,9 +206,13 @@ def initialize_model_and_tokenizer(model_name, to_quantize=False):
             model_id, device_map="auto"
         ).eval()
 
+
         processor = AutoProcessor.from_pretrained(model_id)
 
-
+    elif model_name == "gemma-7b":
+        # tokenizer = AutoTokenizer.from_pretrained("google/codegemma-7b-it")
+        # model = AutoModelForCausalLM.from_pretrained("google/codegemma-7b-it")
+        model = LLM(model="google/gemma-3-7b-it", gpu_memory_utilization=0.9)
     
     else:
         raise NotImplementedError(f"Model {model_name} is not implemented in this template.")
