@@ -85,6 +85,8 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
             sampling_params = SamplingParams(temperature=0.0, max_tokens=512)
             outputs = model.generate([prompt], sampling_params)
             response = outputs[0].outputs[0].text
+            print("RAW VLLM OUTPUT:", outputs)  # Debug here
+       
         else:
             messages = [
                 {"role": "system", "content": "You are a helpful assistant that generates SQL queries based on natural language instructions."},
