@@ -11,10 +11,10 @@ from transformers import BitsAndBytesConfig
 from utils import set_random_seeds, compute_metrics, save_queries_and_records, compute_records
 from prompting_utils import read_schema, extract_sql_query, save_logs
 from load_data import load_prompting_data
-os.environ["PYTORCH_CUDA_ALLOW_TF32"] = "0"
-torch.backends.cuda.enable_flash_sdp(False)
-torch.backends.cuda.enable_mem_efficient_sdp(False)
-torch.backends.cuda.enable_math_sdp(True)
+# os.environ["PYTORCH_CUDA_ALLOW_TF32"] = "0"
+# torch.backends.cuda.enable_flash_sdp(False)
+# torch.backends.cuda.enable_mem_efficient_sdp(False)
+# torch.backends.cuda.enable_math_sdp(True)
 
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu') # you can add mps
 
@@ -110,6 +110,16 @@ def exp_kshot(tokenizer, model, inputs, k, train_x, train_y):
             return_tensors="pt",
         ).to(model.device)
 
+        input_ids = input_tokenized["input_ids"]
+        pad_len = (128 - input_ids.shape[1] % 128) % 128
+        if pad_len > 0:
+            pad_tensor = torch.full((1, pad_len), tokenizer.pad_token_id, dtype=torch.long).to(model.device)
+            input_tokenized["input_ids"] = torch.cat([input_ids, pad_tensor], dim=1)
+
+            if "attention_mask" in input_tokenized:
+                pad_mask = torch.zeros((1, pad_len), dtype=torch.long).to(model.device)
+                input_tokenized["attention_mask"] = torch.cat([input_tokenized["attention_mask"], pad_mask], dim=1)
+
         with torch.inference_mode():
             outputs = model.generate(**input_tokenized, max_new_tokens=MAX_NEW_TOKENS) # You should set MAX_NEW_TOKENS
             # outputs = model.generate(...,
@@ -171,6 +181,8 @@ def initialize_model_and_tokenizer(model_name, to_quantize=False):
         # model_id = "google/gemma-3-1b-it"
         model_id = "google/gemma-3-1b-it"
         tokenizer = AutoTokenizer.from_pretrained(model_id)
+        # tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
+
         # Native weights exported in bfloat16 precision, but you can use a different precision if needed
         
         if to_quantize:
